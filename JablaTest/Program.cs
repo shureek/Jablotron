@@ -19,7 +19,7 @@ namespace CJablotron
         static volatile bool stop = false;
         static string pultId;
         static volatile int socketsWaiting = 0;
-        static readonly System.Text.RegularExpressions.Regex reMsg = new System.Text.RegularExpressions.Regex(@"^5(?<N1>\d{2})(?<N2>\d)\s18(?<ObjNo>[A-F\d]{4,6})(?<Code>[E|R]\d{3})(?<Part>[A-F\d]{2})(?<Zone>[A-F\d]{3})$", System.Text.RegularExpressions.RegexOptions.Compiled);
+        static readonly System.Text.RegularExpressions.Regex reMsg = new System.Text.RegularExpressions.Regex(@"^5(?<N1>\d{2})(?<N2>\d)\s18(?<ObjNo>[A-F\d]{4,6})(?<Code>[ER]\d{3})(?<Part>[A-F\d]{2})(?<Zone>[A-F\d]{3})$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
         /// <summary>
         /// Преобразует строку в число.
