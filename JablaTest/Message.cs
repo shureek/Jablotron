@@ -1,7 +1,10 @@
-﻿namespace CJablotron
-{
-    using System;
+﻿using System;
 
+namespace CJablotron
+{
+    /// <summary>
+    /// Класс сообщения для хранения информации о сообщении на пульт.
+    /// </summary>
     public class Message
     {
         private DateTime date = DateTime.Now;
@@ -12,6 +15,9 @@
         private string source;
         private int zoneNo;
 
+        /// <summary>
+        /// Дата сообщения.
+        /// </summary>
         public DateTime Date
         {
             get
@@ -24,6 +30,9 @@
             }
         }
 
+        /// <summary>
+        /// Идентификатор события.
+        /// </summary>
         public string EventId
         {
             get
@@ -36,6 +45,9 @@
             }
         }
 
+        /// <summary>
+        /// Идентификатор объекта.
+        /// </summary>
         public int ObjectId
         {
             get
@@ -48,6 +60,9 @@
             }
         }
 
+        /// <summary>
+        /// Номер раздела.
+        /// </summary>
         public int PartNo
         {
             get
@@ -60,6 +75,9 @@
             }
         }
 
+        /// <summary>
+        /// Идентификатор пульта.
+        /// </summary>
         public string PultId
         {
             get
@@ -72,6 +90,9 @@
             }
         }
 
+        /// <summary>
+        /// Описание источника события.
+        /// </summary>
         public string Source
         {
             get
@@ -84,6 +105,9 @@
             }
         }
 
+        /// <summary>
+        /// Номер зоны.
+        /// </summary>
         public int ZoneNo
         {
             get

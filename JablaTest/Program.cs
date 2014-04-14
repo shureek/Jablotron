@@ -1,27 +1,34 @@
 ﻿using System.Collections.Generic;
 using System.Collections.Specialized;
+using KSoft._1C;
+using System;
+using System.Net;
+using System.Net.Sockets;
+using System.Runtime.CompilerServices;
+using System.Text;
 
 namespace CJablotron
 {
-    using KSoft._1C;
-    using System;
-    using System.Net;
-    using System.Net.Sockets;
-    using System.Runtime.CompilerServices;
-    using System.Text;
-
     internal class Program
     {
         static readonly byte[] answerError = new byte[] { 0x15 };
-        static readonly byte[] answerOK = new byte[] { 6 };
-        //static dynamic connection;
+        static readonly byte[] answerOK = new byte[] { 0x06 };
         static Connector connector;
         static volatile bool connectedTo1C = false;
         static List<Socket> serverSockets;
         static volatile bool stop = false;
         static string pultId;
         static volatile int socketsWaiting = 0;
+        static readonly System.Text.RegularExpressions.Regex reMsg = new System.Text.RegularExpressions.Regex(@"^5(?<N1>\d{2})(?<N2>\d)\s18(?<ObjNo>[A-F\d]{4,6})(?<Code>[E|R]\d{3})(?<Part>[A-F\d]{2})(?<Zone>[A-F\d]{3})$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
+        /// <summary>
+        /// Преобразует строку в число.
+        /// </summary>
+        /// <remarks>
+        /// Преобразует строку в число. Предварительно делает замену: A => 0, B => 1 ... F => 5
+        /// </remarks>
+        /// <param name="s">Исходная строка</param>
+        /// <returns>Результирующее число.</returns>
         static int Str2int(string s)
         {
             s = s.ToUpperInvariant().ReplaceChars("ABCDEF", "012345");
@@ -31,6 +38,11 @@ namespace CJablotron
             return Int32.Parse(s);
         }
 
+        /// <summary>
+        /// Обработчик входящего подключения.
+        /// </summary>
+        /// <param name="sender">Сокет-сервер, к которому подключились.</param>
+        /// <param name="e">Параметры события.</param>
         private static void AcceptHandler(object sender, SocketAsyncEventArgs e)
         {
             System.Threading.Interlocked.Decrement(ref socketsWaiting);
@@ -47,122 +59,111 @@ namespace CJablotron
                     ListenForConnection(serverSocket, connection as Connection);
                 }
                 NetworkStream stream = null;
-                byte[] buffer = null;
-                char[] chars = null;
+                System.IO.StreamReader reader = null;
                 bool flagContinue = false;
                 if (acceptSocket.Connected)
                 {
-                    buffer = new byte[0x20];
-                    chars = new char[0x20];
                     acceptSocket.NoDelay = true;
                     localEndPoint = acceptSocket.LocalEndPoint;
                     remoteEndPoint = acceptSocket.RemoteEndPoint;
                     WriteLine("Подключен {0} на {1} (в ожидании {2})", remoteEndPoint, localEndPoint, socketsWaiting);
                     stream = new NetworkStream(acceptSocket);
+                    reader = new System.IO.StreamReader(stream, Encoding.ASCII, false, 32);
                     flagContinue = true;
                 }
                 while (flagContinue)
                 {
                     try
                     {
-                        switch (stream.Read(buffer, 0, 0x15))
+                        string str = reader.ReadLine();
+                        if (str == null)
                         {
-                            case 0:
-                                WriteLine("Больше нет данных. Отключение.");
-                                return;
+                            WriteLine("Больше нет данных. Отключение.");
+                            return;
+                        }
 
-                            case 0x15:
+                        if (str[15] == '@')
+                        {
+                            WriteLine("Тест");
+                            acceptSocket.Send(answerOK);
+                        }
+                        else
+                        {
+                            //WriteLine("{0} => {1}: {2}", remoteEndPoint, localEndPoint, str);
+                            try
                             {
-                                for (int i = 0; i < 0x15; i++)
+                                var match = reMsg.Match(str);
+                                if (!match.Success)
+                                    throw new FormatException("Неверный формат сообщения");
+
+                                Message message = new Message
                                 {
-                                    Encoding.ASCII.GetChars(buffer, 0, 0x15, chars, 0);
-                                }
-                                WriteLine("{0} => {1}: {2}", remoteEndPoint, localEndPoint, new string(chars, 0, 0x15));
-                                string s = null;
-                                if (chars[15] == '@')
+                                    Source = string.Format("{0} {1},{2}", remoteEndPoint, match.Groups["N1"].Value, match.Groups["N2"].Value),
+                                    PultId = pultId
+                                };
+                                string objNo = match.Groups["ObjNo"].Value;
+                                if (objNo == "FFFF")
                                 {
-                                    WriteLine("Тест");
-                                    acceptSocket.Send(answerOK);
+                                    // Особенный случай. Ничего не делаем.
                                 }
                                 else
                                 {
-                                    try
+                                    message.ObjectId = Str2int(objNo);
+                                    message.PartNo = Str2int(match.Groups["Part"].Value);
+                                    message.EventId = match.Groups["Code"].Value;
+                                    message.ZoneNo = Str2int(match.Groups["Zone"].Value);
+                                    object structure = connection.CreateStructure(message);
+                                    object result = connection.AddEvent(structure);
+                                    if (result is string)
                                     {
-                                        Message message = new Message {
-                                            Source = string.Format("{0} {1},{2}", remoteEndPoint, new string(chars, 1, 2), chars[3]),
-                                            PultId = pultId
-                                        };
-                                        s = new string(chars, 7, 4);
-                                        if (String.Equals(s, "FFFF", StringComparison.InvariantCultureIgnoreCase))
-                                        {
-                                            // Особенный случай. Ничего не делаем.
-                                        }
-                                        else
-                                        {
-                                            message.ObjectId = Str2int(s);
-                                            s = new string(chars, 15, 2);
-                                            message.PartNo = Str2int(s);
-                                            message.EventId = new string(chars, 11, 4);
-                                            s = new string(chars, 0x11, 3);
-                                            message.ZoneNo = Str2int(s);
-                                            object obj2 = connection.CreateStructure(message);
-                                            object obj3 = connection.AddEvent(obj2);
-                                            if (obj3 is string)
-                                            {
-                                                Dictionary<string, object> errorInfo = new Dictionary<string, object>();
-                                                errorInfo.Add("Ошибка 1С", obj3);
-                                                WriteException(null, errorInfo);
-                                            }
-                                        }
-                                        acceptSocket.Send(answerOK);
-                                    }
-                                    catch (System.Runtime.InteropServices.InvalidComObjectException)
-                                    {
-                                        flagContinue = false;
-                                    }
-                                    catch (Exception exception1)
-                                    {
-                                        exception = exception1;
-
-                                        bool showException = true;
-                                        if (exception is System.Runtime.InteropServices.COMException)
-                                        {
-                                            // "Сеанс отсутствует или удален."
-                                            if (exception.Message.Contains("Сеанс работы завершен") || exception.Message.Contains("Сеанс отсутствует"))
-                                            {
-                                                WriteLine("Произошло отключение от базы 1С");
-                                                // 1Ска отключилась. Отключаем все и пробуем заново подключиться к 1С
-                                                flagContinue = false;
-                                                connectedTo1C = false;
-                                                showException = false;
-                                            }
-                                        }
-
-                                        if (showException)
-                                        {
-                                            IDictionary<string, object> addInfo = null;
-                                            if (exception is FormatException)
-                                            {
-                                                addInfo = new Dictionary<string, object>();
-                                                addInfo["String"] = s;
-                                            }
-                                            WriteException(exception, addInfo);
-                                        }
-
-                                        SocketException socketEx = exception.GetException<SocketException>();
-                                        if (socketEx != null)
-                                        {
-                                            flagContinue = false;
-                                        }
-                                        if (socketEx != null)
-                                        {
-                                            acceptSocket.Send(answerError);
-                                        }
+                                        var errorInfo = new Dictionary<string, object>();
+                                        errorInfo.Add("Ошибка 1С", result);
+                                        WriteException(null, errorInfo);
                                     }
                                 }
-                                break;
+                                acceptSocket.Send(answerOK);
+                            } // try
+                            catch (System.Runtime.InteropServices.InvalidComObjectException)
+                            {
+                                flagContinue = false;
                             }
+                            catch (Exception exception1)
+                            {
+                                exception = exception1;
+
+                                bool showException = true;
+                                if (exception is System.Runtime.InteropServices.COMException)
+                                {
+                                    if (exception.Message.Contains("Сеанс работы завершен") || exception.Message.Contains("Сеанс отсутствует"))
+                                    {
+                                        WriteLine("Произошло отключение от базы 1С");
+                                        // 1Ска отключилась. Отключаем все и пробуем заново подключиться к 1С
+                                        flagContinue = false;
+                                        connectedTo1C = false;
+                                        showException = false;
+                                    }
+                                }
+
+                                if (showException)
+                                {
+                                    IDictionary<string, object> addInfo = null;
+                                    if (exception is FormatException)
+                                    {
+                                        addInfo = new Dictionary<string, object>();
+                                        addInfo["Message"] = str;
+                                    }
+                                    WriteException(exception, addInfo);
+                                }
+
+                                SocketException socketEx = exception.GetException<SocketException>();
+                                if (socketEx != null)
+                                {
+                                    flagContinue = false;
+                                    acceptSocket.Send(answerError);
+                                }
+                            } // catch
                         }
+
                         if (stop || !connectedTo1C)
                         {
                             acceptSocket.Close();
@@ -175,13 +176,9 @@ namespace CJablotron
                         exception = exception2;
                         WriteException(exception);
                         if (exception.GetException<SocketException>() != null)
-                        {
                             flagContinue = false;
-                        }
                         if (exception is ObjectDisposedException)
-                        {
                             return;
-                        }
                     }
                 }
             }
@@ -189,9 +186,7 @@ namespace CJablotron
             {
                 exception = exception3;
                 if (exception.GetException<SocketException>() == null)
-                {
                     WriteException(exception);
-                }
             }
             finally
             {
@@ -199,6 +194,11 @@ namespace CJablotron
             }
         }
 
+        /// <summary>
+        /// Запускает асинхронное ожидание входящего подключения.
+        /// </summary>
+        /// <param name="serverSocket">Серверный сокет.</param>
+        /// <param name="connectionTo1C">Подключение к 1Ске.</param>
         private static void ListenForConnection(Socket serverSocket, Connection connectionTo1C)
         {
             SocketAsyncEventArgs e = new SocketAsyncEventArgs();
@@ -208,6 +208,9 @@ namespace CJablotron
             serverSocket.AcceptAsync(e);
         }
 
+        /// <summary>
+        /// Объект для блокировки вывода в консоль.
+        /// </summary>
         static object consoleLock = new object();
 
         public static void Main(string[] args)
@@ -362,11 +365,21 @@ namespace CJablotron
             return numbers;
         }
 
+        /// <summary>
+        /// Обработчик необработанных исключений домена.
+        /// </summary>
+        /// <param name="sender">Источник исключения.</param>
+        /// <param name="e">Параметры обработчика.</param>
         static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
             WriteException(e.ExceptionObject as Exception);
         }
 
+        /// <summary>
+        /// Вывод информации об исключении в консоль.
+        /// </summary>
+        /// <param name="ex">Исключение.</param>
+        /// <param name="additionaInfo">Дополнительная информация.</param>
         static void WriteException(Exception ex, IDictionary<string, object> additionaInfo = null)
         {
             DateTime time = DateTime.Now;
@@ -399,6 +412,11 @@ namespace CJablotron
             }
         }
 
+        /// <summary>
+        /// Вывод строки в консоль с предварительным выводом текущего времени.
+        /// </summary>
+        /// <param name="message">Форматированная строка.</param>
+        /// <param name="args">Параметры для вывода.</param>
         private static void WriteLine(string message, params object[] args)
         {
             DateTime time = DateTime.Now;
