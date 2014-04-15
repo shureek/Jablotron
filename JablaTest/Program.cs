@@ -112,6 +112,7 @@ namespace CJablotron
                                     message.PartNo = Str2int(match.Groups["Part"].Value);
                                     message.EventId = match.Groups["Code"].Value;
                                     message.ZoneNo = Str2int(match.Groups["Zone"].Value);
+                                    WriteLine("Объект {0}, раздел {1}, зона {2}, код события {3}, источник {4}", message.ObjectId, message.PartNo, message.ZoneNo, message.EventId, message.Source);
                                     object structure = connection.CreateStructure(message);
                                     object result = connection.AddEvent(structure);
                                     if (result is string)

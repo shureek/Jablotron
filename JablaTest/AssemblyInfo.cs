@@ -15,5 +15,5 @@ using System.Diagnostics;
 [assembly: AssemblyCopyright("Copyright 2014")]
 [assembly: Debuggable(DebuggableAttribute.DebuggingModes.DisableOptimizations | DebuggableAttribute.DebuggingModes.EnableEditAndContinue | DebuggableAttribute.DebuggingModes.IgnoreSymbolStoreSequencePoints | DebuggableAttribute.DebuggingModes.Default)]
 [assembly: System.Runtime.CompilerServices.CompilationRelaxations(8)]
-[assembly: AssemblyFileVersion("1.1.2.3")]
-[assembly: AssemblyVersion("1.1.2.3")]
+[assembly: AssemblyFileVersion("1.1.2.4")]
+[assembly: AssemblyVersion("1.1.2.4")]
