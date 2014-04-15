@@ -75,7 +75,7 @@ namespace CJablotron
                 {
                     try
                     {
-                        string str = reader.ReadLine();
+                        string str = reader.ReadLine('\x14');
                         if (str == null)
                         {
                             WriteLine("Больше нет данных. Отключение.");

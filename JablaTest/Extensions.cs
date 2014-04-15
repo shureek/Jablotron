@@ -87,6 +87,22 @@ namespace CJablotron
 
             return new String(chars);
         }
+
+        public static string ReadLine(this System.IO.StreamReader reader, char endChar)
+        {
+            var sb = new StringBuilder(32);
+            while(true)
+            {
+                int n = reader.Read();
+                if (n == -1)
+                    break;
+                char ch = (char)n;
+                if (ch == endChar)
+                    break;
+                sb.Append(ch);
+            }
+            return sb.ToString();
+        }
     }
 }
 
