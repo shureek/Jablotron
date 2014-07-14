@@ -82,7 +82,14 @@ namespace CJablotron
                             return;
                         }
 
-                        if (str[15] == '@')
+                        if (str.EndsWith("\r\n"))
+                            str = str.Substring(0, str.Length - 2);
+
+                        if (str.Length == 0)
+                        {
+                            // Почему-то бывают пустые сообщения
+                        }
+                        else if (str.Length > 15 && str[15] == '@')
                         {
                             WriteLine("Тест");
                             acceptSocket.Send(answerOK);
@@ -94,7 +101,7 @@ namespace CJablotron
                             {
                                 var match = reMsg.Match(str);
                                 if (!match.Success)
-                                    throw new FormatException("Неверный формат сообщения");
+                                    throw new System.IO.InvalidDataException("Неверный формат сообщения");
 
                                 Message message = new Message
                                 {
@@ -128,6 +135,17 @@ namespace CJablotron
                             {
                                 flagContinue = false;
                             }
+                            catch (System.IO.InvalidDataException)
+                            {
+                                var sb = new StringBuilder();
+                                for (int i = 0; i < str.Length; i++)
+                                {
+                                    if (i > 0)
+                                        sb.Append(' ');
+                                    sb.AppendFormat("{0:x2}", (int)str[i]);
+                                }
+                                WriteLine("Странное сообщение: {0} \"{1}\"", sb.ToString(), str);
+                            }
                             catch (Exception exception1)
                             {
                                 exception = exception1;
@@ -148,7 +166,7 @@ namespace CJablotron
                                 if (showException)
                                 {
                                     IDictionary<string, object> addInfo = null;
-                                    if (exception is FormatException)
+                                    if (exception is FormatException || exception is System.IO.InvalidDataException)
                                     {
                                         addInfo = new Dictionary<string, object>();
                                         addInfo["Message"] = str;
